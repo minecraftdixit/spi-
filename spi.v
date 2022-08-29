@@ -1,77 +1,116 @@
-// Code your design here
+ 
+// here SPI is interfaced  with  the DAC 
+
 module spi(
-  input clk , rst, 
-  input [15:0] data_in , 
-  
-  
-  
-  output [15:0] data_out , 
-  output   s_clk , 
-  output wire [4:0] counter , 
-  output wire spi_cs_l
-  
-  
+input clk , rst ,newd , 
+  input [11:0] data_in,
+  output reg cs ,mosi , sclk
 );
-  reg [15:0] mosi;
-  reg [2:0] state;
-  reg [4:0] count; 
-  reg sclk;
-  reg cs;
+
+  typedef enum bit [1:0] {idle = 2'b00 , send = 2'b10} state_type;
+  state_type state = idle;
   
-  always @(posedge clk , posedge rst)
+  int countc= 0;
+  int count= 0;
+  
+  
+  /////////////////////////////////////////generation of sclk
+  
+  always @(posedge clk)
     begin 
       if(rst)
-        begin
-          cs <= 1'b0;
-          sclk <= 1'b1 ;
-          mosi <= 16'b0 ;
-          count <= 5'b0;
+        begin 
+           countc<=0;
+          sclk<=1'b0;
           end
       
-      else 
-        begin 
-          case(state)
-            0: begin
-              sclk <= 1'b0;
-              cs <=1'b1   ;
-              state<=1;
-            end 
-            1: begin
-              sclk <= 1'b1;
-              cs <= 1'b0;
-              mosi <= data_in[count-1];
-              count<= count - 1;
-              state <=2;
+      else
+        begin
+          
+          if(countc<50)
+            begin
+              
+              countc <=countc +1;
+              
             end
-            2:
-              begin
-                sclk <= 1'b1;
-                if(count>0)
-                  begin
-                    state<=1;
-                    end
-                else 
-                  begin
-                    
-                    
-                    count <= 16;
-                    state <=0;
-                    
-                  end
-                
-              end
-                   default: state <=0;
+          else 
+            begin 
+              countc <=0;
+              
+              sclk <= ~sclk;
+              
+            end
           
-          
-              endcase
         end
       
-      
     end
-    assign  spi_cs_l =  cs;
-  assign spi_clk = sclk ;
-  assign  data_out = mosi ;
-    assign counter = count;
+  ///////////////////////////////////////state machine
+  reg [12:0] temp ;
+  always @(posedge sclk)
+  begin 
+    if(rst)
+      begin 
+        
+        cs<= 1'b1;
+        mosi <= 1'b0;
+        
+      end
+    else 
+      begin 
+        case(state)
+          idle:
+        begin 
+          if(newd==1'b1)
+            begin 
+              state<=send;
+              temp<=data_in;
+              
+            cs<=1'b0;
+
+            end
+         else
+           begin
+             state<=idle;
+             temp<=8'b0;
+             
+           end
+        end
+          send:begin
+            
+            if(count<=11)
+              begin
+                mosi <= temp[count];
+                count= count+1;
+              end
+                
+                else begin
+                  
+                  count<=0;
+                  state<= idle;
+                  cs<= 1'b1;
+                  mosi<=1'b0;
+              end
+            
+          end
+          
+          default: state<=idle;
+          
+        endcase
+      end
+     
+  end
   
-  
-endmodule 
+   
+endmodule
+          
+ /////////////////////////////interface 
+          interface spi_f;   
+           logic clk ;
+            logic rst ;
+            logic newd ;
+            logic [11:0] data_in;
+            logic cs ;
+            logic mosi ;
+            logic sclk;
+             
+          endinterface 
